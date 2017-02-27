@@ -9,14 +9,20 @@ var device_token = "<YOUR DEVICE TOKEN>";
 var isWebSocketReady = false;
 var ws = null;
 
+const raspi = require('raspi');
+const I2C = require('raspi-i2c').I2C;
+
+/*
 var serialport = require("serialport")
 var SerialPort = serialport.SerialPort;
 var sp = new SerialPort("/dev/ttyACM0", {
     baudrate: 9600,
     parser: serialport.parsers.readline("\n")
 });
+*/
 
 var WebSocket = require('ws');
+const i2c = new I2C();
 
 /**
  * Gets the current time in millis
@@ -84,15 +90,12 @@ function sendData(currentTemp){
 
 start(); // create websocket connection
 
-sp.on("open", function () {
-    sp.on('data', function(data) {
-            if (!isWebSocketReady){
-                console.log("Websocket is not ready. Skip sending data to ARTIK Cloud (data:" + data +")");
-                return;
-            }
-            console.log("Serial port received data:" + data);
-            var currentTemp = parseFloat(data);
+    i2c.readSync(0x18) //Use i2c address from your Cypress board
+    if (!isWebSocketReady){
+        console.log("Websocket is not ready. Skip sending data to ARTIK Cloud (data:" + data +")");
+        return;
+     }
+     console.log("Received i2c data:" + data);
+     var currentTemp = parseFloat(data);
 
-            sendData(currentTemp);
-    });
-});
+     sendData(currentTemp);
