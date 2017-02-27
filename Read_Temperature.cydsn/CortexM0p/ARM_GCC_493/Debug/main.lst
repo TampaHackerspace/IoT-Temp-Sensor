@@ -1,0 +1,1761 @@
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 1
+
+
+   1              		.cpu cortex-m0plus
+   2              		.fpu softvfp
+   3              		.eabi_attribute 20, 1
+   4              		.eabi_attribute 21, 1
+   5              		.eabi_attribute 23, 3
+   6              		.eabi_attribute 24, 1
+   7              		.eabi_attribute 25, 1
+   8              		.eabi_attribute 26, 1
+   9              		.eabi_attribute 30, 1
+  10              		.eabi_attribute 34, 0
+  11              		.eabi_attribute 18, 4
+  12              		.code	16
+  13              		.file	"main.c"
+  14              		.text
+  15              	.Ltext0:
+  16              		.cfi_sections	.debug_frame
+  17              		.section	.text.InitResources,"ax",%progbits
+  18              		.align	2
+  19              		.global	InitResources
+  20              		.code	16
+  21              		.thumb_func
+  22              		.type	InitResources, %function
+  23              	InitResources:
+  24              	.LFB36:
+  25              		.file 1 "main.c"
+   1:main.c        **** /******************************************************************************
+   2:main.c        **** * Project Name      : CE211321_Temperature_Sensing
+   3:main.c        **** * Version           : 1.0
+   4:main.c        **** * Device Used       : CY8C4A45LQI-L483
+   5:main.c        **** * Software Used     : PSoC Creator 3.3 CP3
+   6:main.c        **** * Compiler Used     : ARM GCC 4.9.3 
+   7:main.c        **** * Related Hardware  : CY8CKIT-048 PSoC Analog Coprocessor Pioneer Kit 
+   8:main.c        **** *******************************************************************************
+   9:main.c        **** * Copyright (2016), Cypress Semiconductor Corporation.
+  10:main.c        **** *******************************************************************************
+  11:main.c        **** * This software, including source code, documentation and related materials
+  12:main.c        **** * ("Software") is owned by Cypress Semiconductor Corporation (Cypress) and is
+  13:main.c        **** * protected by and subject to worldwide patent protection (United States and 
+  14:main.c        **** * foreign), United States copyright laws and international treaty provisions. 
+  15:main.c        **** * Cypress hereby grants to licensee a personal, non-exclusive, non-transferable
+  16:main.c        **** * license to copy, use, modify, create derivative works of, and compile the 
+  17:main.c        **** * Cypress source code and derivative works for the sole purpose of creating 
+  18:main.c        **** * custom software in support of licensee product, such licensee product to be
+  19:main.c        **** * used only in conjunction with Cypress's integrated circuit as specified in the
+  20:main.c        **** * applicable agreement. Any reproduction, modification, translation, compilation,
+  21:main.c        **** * or representation of this Software except as specified above is prohibited 
+  22:main.c        **** * without the express written permission of Cypress.
+  23:main.c        **** * 
+  24:main.c        **** * Disclaimer: THIS SOFTWARE IS PROVIDED AS-IS, WITH NO WARRANTY OF ANY KIND, 
+  25:main.c        **** * EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, NONINFRINGEMENT, IMPLIED 
+  26:main.c        **** * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+  27:main.c        **** * Cypress reserves the right to make changes to the Software without notice. 
+  28:main.c        **** * Cypress does not assume any liability arising out of the application or use
+  29:main.c        **** * of Software or any product or circuit described in the Software. Cypress does
+  30:main.c        **** * not authorize its products for use as critical components in any products 
+  31:main.c        **** * where a malfunction or failure may reasonably be expected to result in 
+  32:main.c        **** * significant injury or death ("ACTIVE Risk Product"). By including Cypress's 
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 2
+
+
+  33:main.c        **** * product in a ACTIVE Risk Product, the manufacturer of such system or application
+  34:main.c        **** * assumes all risk of such use and in doing so indemnifies Cypress against all
+  35:main.c        **** * liability. Use of this Software may be limited by and subject to the applicable
+  36:main.c        **** * Cypress software license agreement.
+  37:main.c        **** *******************************************************************************/
+  38:main.c        **** /*******************************************************************************
+  39:main.c        **** * Theory of Operation: This code example demonstrates how to implement an analog 
+  40:main.c        **** * front end (AFE) for a thermistor using the PSoC Analog Coprocessor. The measured 
+  41:main.c        **** * thermistor resistance and the calculated temperature are sent over I2C. The RGB 
+  42:main.c        **** * LED is controlled based on the calculated temperature value.
+  43:main.c        **** *******************************************************************************/
+  44:main.c        **** 
+  45:main.c        **** /* Header File Includes */
+  46:main.c        **** #include <project.h>
+  47:main.c        **** 
+  48:main.c        **** #define ADC_CHANNEL_VREF			(0u)
+  49:main.c        **** #define ADC_CHANNEL_VTH				(1u)
+  50:main.c        **** #define LED_ON						(0u)
+  51:main.c        **** #define LED_OFF						(1u)
+  52:main.c        **** #define TEMPERATURE_THRESHOLD_HIGH	(3000)
+  53:main.c        **** #define TEMPERATURE_THRESHOLD_LOW	(2500)
+  54:main.c        **** /* IIR Filter coefficients for each signal */
+  55:main.c        **** /* Cut off frequency = fs/(2 * pi * iir_filter_constant).  In this project fs ~= 1 ksps.
+  56:main.c        **** This results in a cut-off frequency of 4.97 Hz.  We are using IIR filter as FIR requires 
+  57:main.c        **** more order of filter to get the same cut-off frequency*/
+  58:main.c        **** #define FILTER_COEFFICIENT_TEMPERATURE	(32u)
+  59:main.c        **** /* EzI2C Read/Write Boundary */
+  60:main.c        **** #define READ_WRITE_BOUNDARY         (0u)
+  61:main.c        **** 
+  62:main.c        **** /* Structure that holds the temperature sensor (thermistor) data                 */
+  63:main.c        **** /* Use __attribute__((packed)) for GCC and MDK compilers to pack structures      */
+  64:main.c        **** /* For other compilers use the corresponding directive.                          */
+  65:main.c        **** /* For example, for IAR use the following directive                              */
+  66:main.c        **** /* typedef __packed struct {..}struct_name;                                      */
+  67:main.c        **** typedef struct __attribute__((packed))
+  68:main.c        **** {
+  69:main.c        **** 	int16 Vth;					/* Voltage across thermistor */
+  70:main.c        **** 	uint16 Rth;					/* Thermistor resistance */
+  71:main.c        **** 	int16 temperature;			/* Measured temperature */
+  72:main.c        **** }temperature_sensor_data;
+  73:main.c        **** 
+  74:main.c        **** /* Function Prototypes */
+  75:main.c        **** void InitResources(void);
+  76:main.c        **** 
+  77:main.c        **** /* Declare the i2cBuffer to exchange sensor data between Bridge Control 
+  78:main.c        **** Panel (BCP) and PSoC Analog Coprocessor */
+  79:main.c        **** temperature_sensor_data i2cBuffer = {0, 0, 0};
+  80:main.c        **** 
+  81:main.c        **** /*******************************************************************************
+  82:main.c        **** * Function Name: main
+  83:main.c        **** ********************************************************************************
+  84:main.c        **** *
+  85:main.c        **** * Summary:
+  86:main.c        **** *  This function initializes all the resources, and in an infinite loop, measures the temperature f
+  87:main.c        **** *  readings and to send the data over I2C.
+  88:main.c        **** *
+  89:main.c        **** * Parameters:
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 3
+
+
+  90:main.c        **** *  None
+  91:main.c        **** *
+  92:main.c        **** * Return:
+  93:main.c        **** *  int
+  94:main.c        **** *
+  95:main.c        **** * Side Effects:
+  96:main.c        **** *   None
+  97:main.c        **** *******************************************************************************/
+  98:main.c        **** int main()
+  99:main.c        **** {
+ 100:main.c        **** 
+ 101:main.c        ****     /* Variables to hold the the ADC readings */
+ 102:main.c        ****     int16 adcResultVREF, adcResultVTH;
+ 103:main.c        ****     
+ 104:main.c        ****     /* Filter input and output variables for Vref and Vth measurements */
+ 105:main.c        ****     int16 filterOutputVref=0;
+ 106:main.c        ****     int16 filterOutputVth=0;
+ 107:main.c        ****     
+ 108:main.c        ****     /* Variables to hold calculated resistance and temperature */
+ 109:main.c        ****     int16 thermistorResistance, temperature;
+ 110:main.c        ****     
+ 111:main.c        ****     /* Variable to store the status returned by CyEnterCriticalSection()*/
+ 112:main.c        ****     uint8 interruptState = 0;
+ 113:main.c        ****     
+ 114:main.c        ****     /* Enable global interrupts */
+ 115:main.c        ****     CyGlobalIntEnable;
+ 116:main.c        ****     
+ 117:main.c        ****     /* Initialize hardware resources */
+ 118:main.c        ****     InitResources();
+ 119:main.c        **** 
+ 120:main.c        ****     /* Infinite Loop */
+ 121:main.c        ****     for(;;)
+ 122:main.c        ****     {
+ 123:main.c        ****         /* Check if the ADC data is ready */
+ 124:main.c        ****         if(ADC_IsEndConversion(ADC_RETURN_STATUS))
+ 125:main.c        ****         {
+ 126:main.c        ****             /* Read the ADC result for reference and thermistor voltages */
+ 127:main.c        ****             adcResultVREF = ADC_GetResult16(ADC_CHANNEL_VREF);
+ 128:main.c        ****             adcResultVTH = ADC_GetResult16(ADC_CHANNEL_VTH);
+ 129:main.c        ****             
+ 130:main.c        ****             /* Low pass filter the measured ADC counts of Vref */            
+ 131:main.c        ****             filterOutputVref = (adcResultVREF + (FILTER_COEFFICIENT_TEMPERATURE - 1) * filterOutput
+ 132:main.c        ****                     
+ 133:main.c        ****             /* Low pass filter the measured ADC counts of Vth */         
+ 134:main.c        ****             filterOutputVth = (adcResultVTH + (FILTER_COEFFICIENT_TEMPERATURE - 1) * filterOutputVt
+ 135:main.c        ****                         
+ 136:main.c        ****             /* Calculate thermistor resistance */
+ 137:main.c        ****             thermistorResistance = Thermistor_GetResistance(filterOutputVref, filterOutputVth);    
+ 138:main.c        ****             
+ 139:main.c        ****             /* Calculate temperature in degree Celsius using the Component API */
+ 140:main.c        ****             temperature = Thermistor_GetTemperature(thermistorResistance);
+ 141:main.c        ****             
+ 142:main.c        ****             /* Turn ON Blue LED if Temperature is <= 25°C */ 
+ 143:main.c        ****             if (temperature <= TEMPERATURE_THRESHOLD_LOW)
+ 144:main.c        ****             {
+ 145:main.c        ****                 Pin_LED_Blue_Write(LED_ON);
+ 146:main.c        ****                 Pin_LED_Red_Write(LED_OFF);
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 4
+
+
+ 147:main.c        ****             }
+ 148:main.c        ****             /* Turn ON both Blue and Red LEDs if the temperature is >25°C and <=30°C */
+ 149:main.c        ****             else if ((temperature > TEMPERATURE_THRESHOLD_LOW) && (temperature < TEMPERATURE_THRESH
+ 150:main.c        ****             {
+ 151:main.c        ****                 Pin_LED_Blue_Write(LED_ON);
+ 152:main.c        ****                 Pin_LED_Red_Write(LED_ON);
+ 153:main.c        ****             }
+ 154:main.c        ****             /* Turn ON Red LED if temperature is >30°C */
+ 155:main.c        ****             else 
+ 156:main.c        ****             {
+ 157:main.c        ****                 Pin_LED_Blue_Write(LED_OFF);
+ 158:main.c        ****                 Pin_LED_Red_Write(LED_ON);
+ 159:main.c        ****             }   
+ 160:main.c        ****             
+ 161:main.c        **** 			/* Enter critical section to check if I2C bus is busy or not */
+ 162:main.c        ****             interruptState = CyEnterCriticalSection();
+ 163:main.c        ****             
+ 164:main.c        ****         	if(!(EZI2C_EzI2CGetActivity() & EZI2C_EZI2C_STATUS_BUSY))
+ 165:main.c        ****         	{
+ 166:main.c        ****                 /* Update I2C Buffer */
+ 167:main.c        ****                 i2cBuffer.Rth = thermistorResistance;
+ 168:main.c        ****                 i2cBuffer.temperature = temperature;
+ 169:main.c        ****                 i2cBuffer.Vth = filterOutputVth;
+ 170:main.c        ****             }
+ 171:main.c        **** 			
+ 172:main.c        **** 			/* Exit critical section */
+ 173:main.c        ****             CyExitCriticalSection(interruptState);
+ 174:main.c        ****         }
+ 175:main.c        ****     }
+ 176:main.c        **** }
+ 177:main.c        **** 
+ 178:main.c        **** /*******************************************************************************
+ 179:main.c        **** * Function Name: void InitResources(void)
+ 180:main.c        **** ********************************************************************************
+ 181:main.c        **** *
+ 182:main.c        **** * Summary:
+ 183:main.c        **** *  This function initializes all the hardware resources
+ 184:main.c        **** *
+ 185:main.c        **** * Parameters:
+ 186:main.c        **** *  None
+ 187:main.c        **** *
+ 188:main.c        **** * Return:
+ 189:main.c        **** *  None
+ 190:main.c        **** *
+ 191:main.c        **** * Side Effects:
+ 192:main.c        **** *   None
+ 193:main.c        **** *******************************************************************************/
+ 194:main.c        **** void InitResources(void)
+ 195:main.c        **** {
+  26              		.loc 1 195 0
+  27              		.cfi_startproc
+  28 0000 08B5     		push	{r3, lr}
+  29              		.cfi_def_cfa_offset 8
+  30              		.cfi_offset 3, -8
+  31              		.cfi_offset 14, -4
+ 196:main.c        ****     /* Start EZI2C Slave Component and initialize buffer */
+ 197:main.c        ****     EZI2C_Start();
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 5
+
+
+  32              		.loc 1 197 0
+  33 0002 FFF7FEFF 		bl	EZI2C_Start
+  34              	.LVL0:
+ 198:main.c        ****     EZI2C_EzI2CSetBuffer1(sizeof(i2cBuffer), READ_WRITE_BOUNDARY, (uint8 *)&i2cBuffer);
+  35              		.loc 1 198 0
+  36 0006 0620     		mov	r0, #6
+  37 0008 0021     		mov	r1, #0
+  38 000a 074A     		ldr	r2, .L2
+  39 000c FFF7FEFF 		bl	EZI2C_EzI2CSetBuffer1
+  40              	.LVL1:
+ 199:main.c        ****         
+ 200:main.c        ****     /* Start the Scanning SAR ADC Component and start conversion */
+ 201:main.c        ****     ADC_Start();
+  41              		.loc 1 201 0
+  42 0010 FFF7FEFF 		bl	ADC_Start
+  43              	.LVL2:
+ 202:main.c        ****     ADC_StartConvert();
+  44              		.loc 1 202 0
+  45 0014 FFF7FEFF 		bl	ADC_StartConvert
+  46              	.LVL3:
+ 203:main.c        ****     
+ 204:main.c        ****     /* Start Reference buffer */
+ 205:main.c        ****     VrefBuffer_Start();
+  47              		.loc 1 205 0
+  48 0018 FFF7FEFF 		bl	VrefBuffer_Start
+  49              	.LVL4:
+ 206:main.c        ****     
+ 207:main.c        ****     /* Start Programmable Voltage Reference */
+ 208:main.c        ****     PVref_Start();
+  50              		.loc 1 208 0
+  51 001c FFF7FEFF 		bl	PVref_Start
+  52              	.LVL5:
+ 209:main.c        ****     
+ 210:main.c        ****     /* Enable Programmable Voltage Reference */
+ 211:main.c        ****     PVref_Enable();
+  53              		.loc 1 211 0
+  54 0020 FFF7FEFF 		bl	PVref_Enable
+  55              	.LVL6:
+ 212:main.c        **** }
+  56              		.loc 1 212 0
+  57              		@ sp needed
+  58 0024 08BD     		pop	{r3, pc}
+  59              	.L3:
+  60 0026 C046     		.align	2
+  61              	.L2:
+  62 0028 00000000 		.word	.LANCHOR0
+  63              		.cfi_endproc
+  64              	.LFE36:
+  65              		.size	InitResources, .-InitResources
+  66              		.section	.text.main,"ax",%progbits
+  67              		.align	2
+  68              		.global	main
+  69              		.code	16
+  70              		.thumb_func
+  71              		.type	main, %function
+  72              	main:
+  73              	.LFB35:
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 6
+
+
+  99:main.c        **** 
+  74              		.loc 1 99 0
+  75              		.cfi_startproc
+  76 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+  77              		.cfi_def_cfa_offset 20
+  78              		.cfi_offset 4, -20
+  79              		.cfi_offset 5, -16
+  80              		.cfi_offset 6, -12
+  81              		.cfi_offset 7, -8
+  82              		.cfi_offset 14, -4
+  83 0002 83B0     		sub	sp, sp, #12
+  84              		.cfi_def_cfa_offset 32
+  85              	.LVL7:
+ 115:main.c        ****     
+  86              		.loc 1 115 0
+  87              	@ 115 "main.c" 1
+  88 0004 62B6     		CPSIE   i
+  89              	@ 0 "" 2
+ 118:main.c        **** 
+  90              		.loc 1 118 0
+  91              		.code	16
+  92 0006 FFF7FEFF 		bl	InitResources
+  93              	.LVL8:
+ 106:main.c        ****     
+  94              		.loc 1 106 0
+  95 000a 0024     		mov	r4, #0
+ 105:main.c        ****     int16 filterOutputVth=0;
+  96              		.loc 1 105 0
+  97 000c 0025     		mov	r5, #0
+  98              	.LVL9:
+  99              	.L5:
+ 124:main.c        ****         {
+ 100              		.loc 1 124 0
+ 101 000e 0120     		mov	r0, #1
+ 102 0010 FFF7FEFF 		bl	ADC_IsEndConversion
+ 103              	.LVL10:
+ 104 0014 ADB2     		uxth	r5, r5
+ 105 0016 A4B2     		uxth	r4, r4
+ 106 0018 0028     		cmp	r0, #0
+ 107 001a F8D0     		beq	.L5
+ 127:main.c        ****             adcResultVTH = ADC_GetResult16(ADC_CHANNEL_VTH);
+ 108              		.loc 1 127 0
+ 109 001c 0020     		mov	r0, #0
+ 110 001e FFF7FEFF 		bl	ADC_GetResult16
+ 111              	.LVL11:
+ 112 0022 061C     		mov	r6, r0
+ 113              	.LVL12:
+ 128:main.c        ****             
+ 114              		.loc 1 128 0
+ 115 0024 0120     		mov	r0, #1
+ 116 0026 FFF7FEFF 		bl	ADC_GetResult16
+ 117              	.LVL13:
+ 131:main.c        ****                     
+ 118              		.loc 1 131 0
+ 119 002a 2DB2     		sxth	r5, r5
+ 120              	.LVL14:
+ 121 002c 6B01     		lsl	r3, r5, #5
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 7
+
+
+ 122 002e 5D1B     		sub	r5, r3, r5
+ 123 0030 7519     		add	r5, r6, r5
+ 124 0032 6D09     		lsr	r5, r5, #5
+ 125 0034 ADB2     		uxth	r5, r5
+ 126              	.LVL15:
+ 134:main.c        ****                         
+ 127              		.loc 1 134 0
+ 128 0036 24B2     		sxth	r4, r4
+ 129              	.LVL16:
+ 130 0038 6301     		lsl	r3, r4, #5
+ 131 003a 1C1B     		sub	r4, r3, r4
+ 132 003c 0419     		add	r4, r0, r4
+ 133 003e 6409     		lsr	r4, r4, #5
+ 134 0040 A4B2     		uxth	r4, r4
+ 135              	.LVL17:
+ 137:main.c        ****             
+ 136              		.loc 1 137 0
+ 137 0042 28B2     		sxth	r0, r5
+ 138              	.LVL18:
+ 139 0044 21B2     		sxth	r1, r4
+ 140 0046 FFF7FEFF 		bl	Thermistor_GetResistance
+ 141              	.LVL19:
+ 142 004a 061C     		mov	r6, r0
+ 143              	.LVL20:
+ 140:main.c        ****             
+ 144              		.loc 1 140 0
+ 145 004c 00B2     		sxth	r0, r0
+ 146 004e FFF7FEFF 		bl	Thermistor_GetTemperature
+ 147              	.LVL21:
+ 148 0052 071E     		sub	r7, r0, #0
+ 149              	.LVL22:
+ 143:main.c        ****             {
+ 150              		.loc 1 143 0
+ 151 0054 164B     		ldr	r3, .L11
+ 152 0056 9F42     		cmp	r7, r3
+ 153 0058 06DC     		bgt	.L6
+ 145:main.c        ****                 Pin_LED_Red_Write(LED_OFF);
+ 154              		.loc 1 145 0
+ 155 005a 0020     		mov	r0, #0
+ 156              	.LVL23:
+ 157 005c FFF7FEFF 		bl	Pin_LED_Blue_Write
+ 158              	.LVL24:
+ 146:main.c        ****             }
+ 159              		.loc 1 146 0
+ 160 0060 0120     		mov	r0, #1
+ 161 0062 FFF7FEFF 		bl	Pin_LED_Red_Write
+ 162              	.LVL25:
+ 163 0066 13E0     		b	.L7
+ 164              	.LVL26:
+ 165              	.L6:
+ 149:main.c        ****             {
+ 166              		.loc 1 149 0
+ 167 0068 124B     		ldr	r3, .L11+4
+ 168 006a C318     		add	r3, r0, r3
+ 169 006c 9BB2     		uxth	r3, r3
+ 170 006e F922     		mov	r2, #249
+ 171 0070 5200     		lsl	r2, r2, #1
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 8
+
+
+ 172 0072 9342     		cmp	r3, r2
+ 173 0074 06D8     		bhi	.L8
+ 151:main.c        ****                 Pin_LED_Red_Write(LED_ON);
+ 174              		.loc 1 151 0
+ 175 0076 0020     		mov	r0, #0
+ 176              	.LVL27:
+ 177 0078 FFF7FEFF 		bl	Pin_LED_Blue_Write
+ 178              	.LVL28:
+ 152:main.c        ****             }
+ 179              		.loc 1 152 0
+ 180 007c 0020     		mov	r0, #0
+ 181 007e FFF7FEFF 		bl	Pin_LED_Red_Write
+ 182              	.LVL29:
+ 183 0082 05E0     		b	.L7
+ 184              	.LVL30:
+ 185              	.L8:
+ 157:main.c        ****                 Pin_LED_Red_Write(LED_ON);
+ 186              		.loc 1 157 0
+ 187 0084 0120     		mov	r0, #1
+ 188              	.LVL31:
+ 189 0086 FFF7FEFF 		bl	Pin_LED_Blue_Write
+ 190              	.LVL32:
+ 158:main.c        ****             }   
+ 191              		.loc 1 158 0
+ 192 008a 0020     		mov	r0, #0
+ 193 008c FFF7FEFF 		bl	Pin_LED_Red_Write
+ 194              	.LVL33:
+ 195              	.L7:
+ 162:main.c        ****             
+ 196              		.loc 1 162 0
+ 197 0090 FFF7FEFF 		bl	CyEnterCriticalSection
+ 198              	.LVL34:
+ 199 0094 0190     		str	r0, [sp, #4]
+ 200              	.LVL35:
+ 164:main.c        ****         	{
+ 201              		.loc 1 164 0
+ 202 0096 FFF7FEFF 		bl	EZI2C_EzI2CGetActivity
+ 203              	.LVL36:
+ 204 009a 8306     		lsl	r3, r0, #26
+ 205 009c 03D4     		bmi	.L9
+ 167:main.c        ****                 i2cBuffer.temperature = temperature;
+ 206              		.loc 1 167 0
+ 207 009e 064B     		ldr	r3, .L11+8
+ 208 00a0 5E80     		strh	r6, [r3, #2]
+ 168:main.c        ****                 i2cBuffer.Vth = filterOutputVth;
+ 209              		.loc 1 168 0
+ 210 00a2 9F80     		strh	r7, [r3, #4]
+ 169:main.c        ****             }
+ 211              		.loc 1 169 0
+ 212 00a4 1C80     		strh	r4, [r3]
+ 213              	.L9:
+ 173:main.c        ****         }
+ 214              		.loc 1 173 0
+ 215 00a6 0198     		ldr	r0, [sp, #4]
+ 216 00a8 FFF7FEFF 		bl	CyExitCriticalSection
+ 217              	.LVL37:
+ 218 00ac AFE7     		b	.L5
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 9
+
+
+ 219              	.L12:
+ 220 00ae C046     		.align	2
+ 221              	.L11:
+ 222 00b0 C4090000 		.word	2500
+ 223 00b4 3BF6FFFF 		.word	-2501
+ 224 00b8 00000000 		.word	.LANCHOR0
+ 225              		.cfi_endproc
+ 226              	.LFE35:
+ 227              		.size	main, .-main
+ 228              		.global	i2cBuffer
+ 229              		.bss
+ 230              		.align	2
+ 231              		.set	.LANCHOR0,. + 0
+ 232              		.type	i2cBuffer, %object
+ 233              		.size	i2cBuffer, 6
+ 234              	i2cBuffer:
+ 235 0000 00000000 		.space	6
+ 235      0000
+ 236 0006 0000     		.text
+ 237              	.Letext0:
+ 238              		.file 2 "Generated_Source\\PSoC4/cytypes.h"
+ 239              		.file 3 "Generated_Source\\PSoC4/EZI2C.h"
+ 240              		.file 4 "Generated_Source\\PSoC4/ADC.h"
+ 241              		.file 5 "Generated_Source\\PSoC4/VrefBuffer.h"
+ 242              		.file 6 "Generated_Source\\PSoC4/PVref.h"
+ 243              		.file 7 "Generated_Source\\PSoC4/Thermistor.h"
+ 244              		.file 8 "Generated_Source\\PSoC4/EZI2C_EZI2C.h"
+ 245              		.file 9 "Generated_Source\\PSoC4/Pin_LED_Blue.h"
+ 246              		.file 10 "Generated_Source\\PSoC4/Pin_LED_Red.h"
+ 247              		.file 11 "Generated_Source\\PSoC4/CyLib.h"
+ 248              		.section	.debug_info,"",%progbits
+ 249              	.Ldebug_info0:
+ 250 0000 D6030000 		.4byte	0x3d6
+ 251 0004 0400     		.2byte	0x4
+ 252 0006 00000000 		.4byte	.Ldebug_abbrev0
+ 253 000a 04       		.byte	0x4
+ 254 000b 01       		.uleb128 0x1
+ 255 000c 44020000 		.4byte	.LASF42
+ 256 0010 01       		.byte	0x1
+ 257 0011 38020000 		.4byte	.LASF43
+ 258 0015 05030000 		.4byte	.LASF44
+ 259 0019 00000000 		.4byte	.Ldebug_ranges0+0
+ 260 001d 00000000 		.4byte	0
+ 261 0021 00000000 		.4byte	.Ldebug_line0
+ 262 0025 02       		.uleb128 0x2
+ 263 0026 01       		.byte	0x1
+ 264 0027 06       		.byte	0x6
+ 265 0028 AA030000 		.4byte	.LASF0
+ 266 002c 02       		.uleb128 0x2
+ 267 002d 01       		.byte	0x1
+ 268 002e 08       		.byte	0x8
+ 269 002f B6000000 		.4byte	.LASF1
+ 270 0033 02       		.uleb128 0x2
+ 271 0034 02       		.byte	0x2
+ 272 0035 05       		.byte	0x5
+ 273 0036 D6020000 		.4byte	.LASF2
+ 274 003a 02       		.uleb128 0x2
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 10
+
+
+ 275 003b 02       		.byte	0x2
+ 276 003c 07       		.byte	0x7
+ 277 003d 53000000 		.4byte	.LASF3
+ 278 0041 02       		.uleb128 0x2
+ 279 0042 04       		.byte	0x4
+ 280 0043 05       		.byte	0x5
+ 281 0044 A1030000 		.4byte	.LASF4
+ 282 0048 02       		.uleb128 0x2
+ 283 0049 04       		.byte	0x4
+ 284 004a 07       		.byte	0x7
+ 285 004b 00010000 		.4byte	.LASF5
+ 286 004f 02       		.uleb128 0x2
+ 287 0050 08       		.byte	0x8
+ 288 0051 05       		.byte	0x5
+ 289 0052 00000000 		.4byte	.LASF6
+ 290 0056 02       		.uleb128 0x2
+ 291 0057 08       		.byte	0x8
+ 292 0058 07       		.byte	0x7
+ 293 0059 9F000000 		.4byte	.LASF7
+ 294 005d 03       		.uleb128 0x3
+ 295 005e 04       		.byte	0x4
+ 296 005f 05       		.byte	0x5
+ 297 0060 696E7400 		.ascii	"int\000"
+ 298 0064 02       		.uleb128 0x2
+ 299 0065 04       		.byte	0x4
+ 300 0066 07       		.byte	0x7
+ 301 0067 B4010000 		.4byte	.LASF8
+ 302 006b 04       		.uleb128 0x4
+ 303 006c 12010000 		.4byte	.LASF9
+ 304 0070 02       		.byte	0x2
+ 305 0071 B901     		.2byte	0x1b9
+ 306 0073 2C000000 		.4byte	0x2c
+ 307 0077 04       		.uleb128 0x4
+ 308 0078 8F010000 		.4byte	.LASF10
+ 309 007c 02       		.byte	0x2
+ 310 007d BA01     		.2byte	0x1ba
+ 311 007f 3A000000 		.4byte	0x3a
+ 312 0083 04       		.uleb128 0x4
+ 313 0084 96010000 		.4byte	.LASF11
+ 314 0088 02       		.byte	0x2
+ 315 0089 BB01     		.2byte	0x1bb
+ 316 008b 48000000 		.4byte	0x48
+ 317 008f 04       		.uleb128 0x4
+ 318 0090 ED010000 		.4byte	.LASF12
+ 319 0094 02       		.byte	0x2
+ 320 0095 BD01     		.2byte	0x1bd
+ 321 0097 33000000 		.4byte	0x33
+ 322 009b 02       		.uleb128 0x2
+ 323 009c 04       		.byte	0x4
+ 324 009d 04       		.byte	0x4
+ 325 009e 3C000000 		.4byte	.LASF13
+ 326 00a2 02       		.uleb128 0x2
+ 327 00a3 08       		.byte	0x8
+ 328 00a4 04       		.byte	0x4
+ 329 00a5 68010000 		.4byte	.LASF14
+ 330 00a9 02       		.uleb128 0x2
+ 331 00aa 01       		.byte	0x1
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 11
+
+
+ 332 00ab 08       		.byte	0x8
+ 333 00ac 3F020000 		.4byte	.LASF15
+ 334 00b0 05       		.uleb128 0x5
+ 335 00b1 6B000000 		.4byte	0x6b
+ 336 00b5 02       		.uleb128 0x2
+ 337 00b6 04       		.byte	0x4
+ 338 00b7 07       		.byte	0x7
+ 339 00b8 10020000 		.4byte	.LASF16
+ 340 00bc 06       		.uleb128 0x6
+ 341 00bd 06       		.byte	0x6
+ 342 00be 01       		.byte	0x1
+ 343 00bf 43       		.byte	0x43
+ 344 00c0 E9000000 		.4byte	0xe9
+ 345 00c4 07       		.uleb128 0x7
+ 346 00c5 56746800 		.ascii	"Vth\000"
+ 347 00c9 01       		.byte	0x1
+ 348 00ca 45       		.byte	0x45
+ 349 00cb 8F000000 		.4byte	0x8f
+ 350 00cf 00       		.byte	0
+ 351 00d0 07       		.uleb128 0x7
+ 352 00d1 52746800 		.ascii	"Rth\000"
+ 353 00d5 01       		.byte	0x1
+ 354 00d6 46       		.byte	0x46
+ 355 00d7 77000000 		.4byte	0x77
+ 356 00db 02       		.byte	0x2
+ 357 00dc 08       		.uleb128 0x8
+ 358 00dd 93000000 		.4byte	.LASF17
+ 359 00e1 01       		.byte	0x1
+ 360 00e2 47       		.byte	0x47
+ 361 00e3 8F000000 		.4byte	0x8f
+ 362 00e7 04       		.byte	0x4
+ 363 00e8 00       		.byte	0
+ 364 00e9 09       		.uleb128 0x9
+ 365 00ea D9000000 		.4byte	.LASF18
+ 366 00ee 01       		.byte	0x1
+ 367 00ef 48       		.byte	0x48
+ 368 00f0 BC000000 		.4byte	0xbc
+ 369 00f4 0A       		.uleb128 0xa
+ 370 00f5 6F010000 		.4byte	.LASF19
+ 371 00f9 01       		.byte	0x1
+ 372 00fa C2       		.byte	0xc2
+ 373 00fb 00000000 		.4byte	.LFB36
+ 374 00ff 2C000000 		.4byte	.LFE36-.LFB36
+ 375 0103 01       		.uleb128 0x1
+ 376 0104 9C       		.byte	0x9c
+ 377 0105 61010000 		.4byte	0x161
+ 378 0109 0B       		.uleb128 0xb
+ 379 010a 06000000 		.4byte	.LVL0
+ 380 010e F0020000 		.4byte	0x2f0
+ 381 0112 0C       		.uleb128 0xc
+ 382 0113 10000000 		.4byte	.LVL1
+ 383 0117 F7020000 		.4byte	0x2f7
+ 384 011b 33010000 		.4byte	0x133
+ 385 011f 0D       		.uleb128 0xd
+ 386 0120 01       		.uleb128 0x1
+ 387 0121 52       		.byte	0x52
+ 388 0122 05       		.uleb128 0x5
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 12
+
+
+ 389 0123 03       		.byte	0x3
+ 390 0124 00000000 		.4byte	.LANCHOR0
+ 391 0128 0D       		.uleb128 0xd
+ 392 0129 01       		.uleb128 0x1
+ 393 012a 51       		.byte	0x51
+ 394 012b 01       		.uleb128 0x1
+ 395 012c 30       		.byte	0x30
+ 396 012d 0D       		.uleb128 0xd
+ 397 012e 01       		.uleb128 0x1
+ 398 012f 50       		.byte	0x50
+ 399 0130 01       		.uleb128 0x1
+ 400 0131 36       		.byte	0x36
+ 401 0132 00       		.byte	0
+ 402 0133 0B       		.uleb128 0xb
+ 403 0134 14000000 		.4byte	.LVL2
+ 404 0138 18030000 		.4byte	0x318
+ 405 013c 0B       		.uleb128 0xb
+ 406 013d 18000000 		.4byte	.LVL3
+ 407 0141 1F030000 		.4byte	0x31f
+ 408 0145 0B       		.uleb128 0xb
+ 409 0146 1C000000 		.4byte	.LVL4
+ 410 014a 26030000 		.4byte	0x326
+ 411 014e 0B       		.uleb128 0xb
+ 412 014f 20000000 		.4byte	.LVL5
+ 413 0153 2D030000 		.4byte	0x32d
+ 414 0157 0B       		.uleb128 0xb
+ 415 0158 24000000 		.4byte	.LVL6
+ 416 015c 34030000 		.4byte	0x334
+ 417 0160 00       		.byte	0
+ 418 0161 0E       		.uleb128 0xe
+ 419 0162 7D010000 		.4byte	.LASF20
+ 420 0166 01       		.byte	0x1
+ 421 0167 62       		.byte	0x62
+ 422 0168 5D000000 		.4byte	0x5d
+ 423 016c 00000000 		.4byte	.LFB35
+ 424 0170 BC000000 		.4byte	.LFE35-.LFB35
+ 425 0174 01       		.uleb128 0x1
+ 426 0175 9C       		.byte	0x9c
+ 427 0176 DF020000 		.4byte	0x2df
+ 428 017a 0F       		.uleb128 0xf
+ 429 017b 19020000 		.4byte	.LASF21
+ 430 017f 01       		.byte	0x1
+ 431 0180 66       		.byte	0x66
+ 432 0181 8F000000 		.4byte	0x8f
+ 433 0185 00000000 		.4byte	.LLST0
+ 434 0189 0F       		.uleb128 0xf
+ 435 018a 2F000000 		.4byte	.LASF22
+ 436 018e 01       		.byte	0x1
+ 437 018f 66       		.byte	0x66
+ 438 0190 8F000000 		.4byte	0x8f
+ 439 0194 13000000 		.4byte	.LLST1
+ 440 0198 0F       		.uleb128 0xf
+ 441 0199 1E000000 		.4byte	.LASF23
+ 442 019d 01       		.byte	0x1
+ 443 019e 69       		.byte	0x69
+ 444 019f 8F000000 		.4byte	0x8f
+ 445 01a3 26000000 		.4byte	.LLST2
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 13
+
+
+ 446 01a7 0F       		.uleb128 0xf
+ 447 01a8 0E000000 		.4byte	.LASF24
+ 448 01ac 01       		.byte	0x1
+ 449 01ad 6A       		.byte	0x6a
+ 450 01ae 8F000000 		.4byte	0x8f
+ 451 01b2 50000000 		.4byte	.LLST3
+ 452 01b6 0F       		.uleb128 0xf
+ 453 01b7 C4000000 		.4byte	.LASF25
+ 454 01bb 01       		.byte	0x1
+ 455 01bc 6D       		.byte	0x6d
+ 456 01bd 8F000000 		.4byte	0x8f
+ 457 01c1 7A000000 		.4byte	.LLST4
+ 458 01c5 0F       		.uleb128 0xf
+ 459 01c6 93000000 		.4byte	.LASF17
+ 460 01ca 01       		.byte	0x1
+ 461 01cb 6D       		.byte	0x6d
+ 462 01cc 8F000000 		.4byte	0x8f
+ 463 01d0 8D000000 		.4byte	.LLST5
+ 464 01d4 0F       		.uleb128 0xf
+ 465 01d5 F1000000 		.4byte	.LASF26
+ 466 01d9 01       		.byte	0x1
+ 467 01da 70       		.byte	0x70
+ 468 01db 6B000000 		.4byte	0x6b
+ 469 01df B6000000 		.4byte	.LLST6
+ 470 01e3 0B       		.uleb128 0xb
+ 471 01e4 0A000000 		.4byte	.LVL8
+ 472 01e8 F4000000 		.4byte	0xf4
+ 473 01ec 0C       		.uleb128 0xc
+ 474 01ed 14000000 		.4byte	.LVL10
+ 475 01f1 3B030000 		.4byte	0x33b
+ 476 01f5 FF010000 		.4byte	0x1ff
+ 477 01f9 0D       		.uleb128 0xd
+ 478 01fa 01       		.uleb128 0x1
+ 479 01fb 50       		.byte	0x50
+ 480 01fc 01       		.uleb128 0x1
+ 481 01fd 31       		.byte	0x31
+ 482 01fe 00       		.byte	0
+ 483 01ff 0C       		.uleb128 0xc
+ 484 0200 22000000 		.4byte	.LVL11
+ 485 0204 50030000 		.4byte	0x350
+ 486 0208 12020000 		.4byte	0x212
+ 487 020c 0D       		.uleb128 0xd
+ 488 020d 01       		.uleb128 0x1
+ 489 020e 50       		.byte	0x50
+ 490 020f 01       		.uleb128 0x1
+ 491 0210 30       		.byte	0x30
+ 492 0211 00       		.byte	0
+ 493 0212 0C       		.uleb128 0xc
+ 494 0213 2A000000 		.4byte	.LVL13
+ 495 0217 50030000 		.4byte	0x350
+ 496 021b 25020000 		.4byte	0x225
+ 497 021f 0D       		.uleb128 0xd
+ 498 0220 01       		.uleb128 0x1
+ 499 0221 50       		.byte	0x50
+ 500 0222 01       		.uleb128 0x1
+ 501 0223 31       		.byte	0x31
+ 502 0224 00       		.byte	0
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 14
+
+
+ 503 0225 0C       		.uleb128 0xc
+ 504 0226 4A000000 		.4byte	.LVL19
+ 505 022a 65030000 		.4byte	0x365
+ 506 022e 3F020000 		.4byte	0x23f
+ 507 0232 0D       		.uleb128 0xd
+ 508 0233 01       		.uleb128 0x1
+ 509 0234 51       		.byte	0x51
+ 510 0235 02       		.uleb128 0x2
+ 511 0236 74       		.byte	0x74
+ 512 0237 00       		.sleb128 0
+ 513 0238 0D       		.uleb128 0xd
+ 514 0239 01       		.uleb128 0x1
+ 515 023a 50       		.byte	0x50
+ 516 023b 02       		.uleb128 0x2
+ 517 023c 75       		.byte	0x75
+ 518 023d 00       		.sleb128 0
+ 519 023e 00       		.byte	0
+ 520 023f 0B       		.uleb128 0xb
+ 521 0240 52000000 		.4byte	.LVL21
+ 522 0244 7F030000 		.4byte	0x37f
+ 523 0248 0C       		.uleb128 0xc
+ 524 0249 60000000 		.4byte	.LVL24
+ 525 024d 94030000 		.4byte	0x394
+ 526 0251 5B020000 		.4byte	0x25b
+ 527 0255 0D       		.uleb128 0xd
+ 528 0256 01       		.uleb128 0x1
+ 529 0257 50       		.byte	0x50
+ 530 0258 01       		.uleb128 0x1
+ 531 0259 30       		.byte	0x30
+ 532 025a 00       		.byte	0
+ 533 025b 0C       		.uleb128 0xc
+ 534 025c 66000000 		.4byte	.LVL25
+ 535 0260 A5030000 		.4byte	0x3a5
+ 536 0264 6E020000 		.4byte	0x26e
+ 537 0268 0D       		.uleb128 0xd
+ 538 0269 01       		.uleb128 0x1
+ 539 026a 50       		.byte	0x50
+ 540 026b 01       		.uleb128 0x1
+ 541 026c 31       		.byte	0x31
+ 542 026d 00       		.byte	0
+ 543 026e 0C       		.uleb128 0xc
+ 544 026f 7C000000 		.4byte	.LVL28
+ 545 0273 94030000 		.4byte	0x394
+ 546 0277 81020000 		.4byte	0x281
+ 547 027b 0D       		.uleb128 0xd
+ 548 027c 01       		.uleb128 0x1
+ 549 027d 50       		.byte	0x50
+ 550 027e 01       		.uleb128 0x1
+ 551 027f 30       		.byte	0x30
+ 552 0280 00       		.byte	0
+ 553 0281 0C       		.uleb128 0xc
+ 554 0282 82000000 		.4byte	.LVL29
+ 555 0286 A5030000 		.4byte	0x3a5
+ 556 028a 94020000 		.4byte	0x294
+ 557 028e 0D       		.uleb128 0xd
+ 558 028f 01       		.uleb128 0x1
+ 559 0290 50       		.byte	0x50
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 15
+
+
+ 560 0291 01       		.uleb128 0x1
+ 561 0292 30       		.byte	0x30
+ 562 0293 00       		.byte	0
+ 563 0294 0C       		.uleb128 0xc
+ 564 0295 8A000000 		.4byte	.LVL32
+ 565 0299 94030000 		.4byte	0x394
+ 566 029d A7020000 		.4byte	0x2a7
+ 567 02a1 0D       		.uleb128 0xd
+ 568 02a2 01       		.uleb128 0x1
+ 569 02a3 50       		.byte	0x50
+ 570 02a4 01       		.uleb128 0x1
+ 571 02a5 31       		.byte	0x31
+ 572 02a6 00       		.byte	0
+ 573 02a7 0C       		.uleb128 0xc
+ 574 02a8 90000000 		.4byte	.LVL33
+ 575 02ac A5030000 		.4byte	0x3a5
+ 576 02b0 BA020000 		.4byte	0x2ba
+ 577 02b4 0D       		.uleb128 0xd
+ 578 02b5 01       		.uleb128 0x1
+ 579 02b6 50       		.byte	0x50
+ 580 02b7 01       		.uleb128 0x1
+ 581 02b8 30       		.byte	0x30
+ 582 02b9 00       		.byte	0
+ 583 02ba 0B       		.uleb128 0xb
+ 584 02bb 94000000 		.4byte	.LVL34
+ 585 02bf B6030000 		.4byte	0x3b6
+ 586 02c3 0B       		.uleb128 0xb
+ 587 02c4 9A000000 		.4byte	.LVL36
+ 588 02c8 C1030000 		.4byte	0x3c1
+ 589 02cc 10       		.uleb128 0x10
+ 590 02cd AC000000 		.4byte	.LVL37
+ 591 02d1 CC030000 		.4byte	0x3cc
+ 592 02d5 0D       		.uleb128 0xd
+ 593 02d6 01       		.uleb128 0x1
+ 594 02d7 50       		.byte	0x50
+ 595 02d8 04       		.uleb128 0x4
+ 596 02d9 91       		.byte	0x91
+ 597 02da 64       		.sleb128 -28
+ 598 02db 94       		.byte	0x94
+ 599 02dc 01       		.byte	0x1
+ 600 02dd 00       		.byte	0
+ 601 02de 00       		.byte	0
+ 602 02df 11       		.uleb128 0x11
+ 603 02e0 7D000000 		.4byte	.LASF45
+ 604 02e4 01       		.byte	0x1
+ 605 02e5 4F       		.byte	0x4f
+ 606 02e6 E9000000 		.4byte	0xe9
+ 607 02ea 05       		.uleb128 0x5
+ 608 02eb 03       		.byte	0x3
+ 609 02ec 00000000 		.4byte	i2cBuffer
+ 610 02f0 12       		.uleb128 0x12
+ 611 02f1 F9020000 		.4byte	.LASF27
+ 612 02f5 03       		.byte	0x3
+ 613 02f6 6E       		.byte	0x6e
+ 614 02f7 13       		.uleb128 0x13
+ 615 02f8 D7010000 		.4byte	.LASF37
+ 616 02fc 08       		.byte	0x8
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 16
+
+
+ 617 02fd A2       		.byte	0xa2
+ 618 02fe 12030000 		.4byte	0x312
+ 619 0302 14       		.uleb128 0x14
+ 620 0303 83000000 		.4byte	0x83
+ 621 0307 14       		.uleb128 0x14
+ 622 0308 83000000 		.4byte	0x83
+ 623 030c 14       		.uleb128 0x14
+ 624 030d 12030000 		.4byte	0x312
+ 625 0311 00       		.byte	0
+ 626 0312 15       		.uleb128 0x15
+ 627 0313 04       		.byte	0x4
+ 628 0314 B0000000 		.4byte	0xb0
+ 629 0318 12       		.uleb128 0x12
+ 630 0319 F3010000 		.4byte	.LASF28
+ 631 031d 04       		.byte	0x4
+ 632 031e B1       		.byte	0xb1
+ 633 031f 12       		.uleb128 0x12
+ 634 0320 27020000 		.4byte	.LASF29
+ 635 0324 04       		.byte	0x4
+ 636 0325 B4       		.byte	0xb4
+ 637 0326 12       		.uleb128 0x12
+ 638 0327 42000000 		.4byte	.LASF30
+ 639 032b 05       		.byte	0x5
+ 640 032c 29       		.byte	0x29
+ 641 032d 12       		.uleb128 0x12
+ 642 032e 87000000 		.4byte	.LASF31
+ 643 0332 06       		.byte	0x6
+ 644 0333 37       		.byte	0x37
+ 645 0334 12       		.uleb128 0x12
+ 646 0335 82010000 		.4byte	.LASF32
+ 647 0339 06       		.byte	0x6
+ 648 033a 36       		.byte	0x36
+ 649 033b 16       		.uleb128 0x16
+ 650 033c 42010000 		.4byte	.LASF33
+ 651 0340 04       		.byte	0x4
+ 652 0341 B8       		.byte	0xb8
+ 653 0342 83000000 		.4byte	0x83
+ 654 0346 50030000 		.4byte	0x350
+ 655 034a 14       		.uleb128 0x14
+ 656 034b 83000000 		.4byte	0x83
+ 657 034f 00       		.byte	0
+ 658 0350 16       		.uleb128 0x16
+ 659 0351 32010000 		.4byte	.LASF34
+ 660 0355 04       		.byte	0x4
+ 661 0356 B9       		.byte	0xb9
+ 662 0357 8F000000 		.4byte	0x8f
+ 663 035b 65030000 		.4byte	0x365
+ 664 035f 14       		.uleb128 0x14
+ 665 0360 83000000 		.4byte	0x83
+ 666 0364 00       		.byte	0
+ 667 0365 16       		.uleb128 0x16
+ 668 0366 E0020000 		.4byte	.LASF35
+ 669 036a 07       		.byte	0x7
+ 670 036b 30       		.byte	0x30
+ 671 036c 83000000 		.4byte	0x83
+ 672 0370 7F030000 		.4byte	0x37f
+ 673 0374 14       		.uleb128 0x14
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 17
+
+
+ 674 0375 8F000000 		.4byte	0x8f
+ 675 0379 14       		.uleb128 0x14
+ 676 037a 8F000000 		.4byte	0x8f
+ 677 037e 00       		.byte	0
+ 678 037f 16       		.uleb128 0x16
+ 679 0380 18010000 		.4byte	.LASF36
+ 680 0384 07       		.byte	0x7
+ 681 0385 32       		.byte	0x32
+ 682 0386 8F000000 		.4byte	0x8f
+ 683 038a 94030000 		.4byte	0x394
+ 684 038e 14       		.uleb128 0x14
+ 685 038f 83000000 		.4byte	0x83
+ 686 0393 00       		.byte	0
+ 687 0394 13       		.uleb128 0x13
+ 688 0395 FD010000 		.4byte	.LASF38
+ 689 0399 09       		.byte	0x9
+ 690 039a 33       		.byte	0x33
+ 691 039b A5030000 		.4byte	0x3a5
+ 692 039f 14       		.uleb128 0x14
+ 693 03a0 6B000000 		.4byte	0x6b
+ 694 03a4 00       		.byte	0
+ 695 03a5 13       		.uleb128 0x13
+ 696 03a6 56010000 		.4byte	.LASF39
+ 697 03aa 0A       		.byte	0xa
+ 698 03ab 33       		.byte	0x33
+ 699 03ac B6030000 		.4byte	0x3b6
+ 700 03b0 14       		.uleb128 0x14
+ 701 03b1 6B000000 		.4byte	0x6b
+ 702 03b5 00       		.byte	0
+ 703 03b6 17       		.uleb128 0x17
+ 704 03b7 9D010000 		.4byte	.LASF40
+ 705 03bb 0B       		.byte	0xb
+ 706 03bc E5       		.byte	0xe5
+ 707 03bd 6B000000 		.4byte	0x6b
+ 708 03c1 17       		.uleb128 0x17
+ 709 03c2 66000000 		.4byte	.LASF41
+ 710 03c6 08       		.byte	0x8
+ 711 03c7 9E       		.byte	0x9e
+ 712 03c8 83000000 		.4byte	0x83
+ 713 03cc 18       		.uleb128 0x18
+ 714 03cd C1010000 		.4byte	.LASF46
+ 715 03d1 0B       		.byte	0xb
+ 716 03d2 E6       		.byte	0xe6
+ 717 03d3 14       		.uleb128 0x14
+ 718 03d4 6B000000 		.4byte	0x6b
+ 719 03d8 00       		.byte	0
+ 720 03d9 00       		.byte	0
+ 721              		.section	.debug_abbrev,"",%progbits
+ 722              	.Ldebug_abbrev0:
+ 723 0000 01       		.uleb128 0x1
+ 724 0001 11       		.uleb128 0x11
+ 725 0002 01       		.byte	0x1
+ 726 0003 25       		.uleb128 0x25
+ 727 0004 0E       		.uleb128 0xe
+ 728 0005 13       		.uleb128 0x13
+ 729 0006 0B       		.uleb128 0xb
+ 730 0007 03       		.uleb128 0x3
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 18
+
+
+ 731 0008 0E       		.uleb128 0xe
+ 732 0009 1B       		.uleb128 0x1b
+ 733 000a 0E       		.uleb128 0xe
+ 734 000b 55       		.uleb128 0x55
+ 735 000c 17       		.uleb128 0x17
+ 736 000d 11       		.uleb128 0x11
+ 737 000e 01       		.uleb128 0x1
+ 738 000f 10       		.uleb128 0x10
+ 739 0010 17       		.uleb128 0x17
+ 740 0011 00       		.byte	0
+ 741 0012 00       		.byte	0
+ 742 0013 02       		.uleb128 0x2
+ 743 0014 24       		.uleb128 0x24
+ 744 0015 00       		.byte	0
+ 745 0016 0B       		.uleb128 0xb
+ 746 0017 0B       		.uleb128 0xb
+ 747 0018 3E       		.uleb128 0x3e
+ 748 0019 0B       		.uleb128 0xb
+ 749 001a 03       		.uleb128 0x3
+ 750 001b 0E       		.uleb128 0xe
+ 751 001c 00       		.byte	0
+ 752 001d 00       		.byte	0
+ 753 001e 03       		.uleb128 0x3
+ 754 001f 24       		.uleb128 0x24
+ 755 0020 00       		.byte	0
+ 756 0021 0B       		.uleb128 0xb
+ 757 0022 0B       		.uleb128 0xb
+ 758 0023 3E       		.uleb128 0x3e
+ 759 0024 0B       		.uleb128 0xb
+ 760 0025 03       		.uleb128 0x3
+ 761 0026 08       		.uleb128 0x8
+ 762 0027 00       		.byte	0
+ 763 0028 00       		.byte	0
+ 764 0029 04       		.uleb128 0x4
+ 765 002a 16       		.uleb128 0x16
+ 766 002b 00       		.byte	0
+ 767 002c 03       		.uleb128 0x3
+ 768 002d 0E       		.uleb128 0xe
+ 769 002e 3A       		.uleb128 0x3a
+ 770 002f 0B       		.uleb128 0xb
+ 771 0030 3B       		.uleb128 0x3b
+ 772 0031 05       		.uleb128 0x5
+ 773 0032 49       		.uleb128 0x49
+ 774 0033 13       		.uleb128 0x13
+ 775 0034 00       		.byte	0
+ 776 0035 00       		.byte	0
+ 777 0036 05       		.uleb128 0x5
+ 778 0037 35       		.uleb128 0x35
+ 779 0038 00       		.byte	0
+ 780 0039 49       		.uleb128 0x49
+ 781 003a 13       		.uleb128 0x13
+ 782 003b 00       		.byte	0
+ 783 003c 00       		.byte	0
+ 784 003d 06       		.uleb128 0x6
+ 785 003e 13       		.uleb128 0x13
+ 786 003f 01       		.byte	0x1
+ 787 0040 0B       		.uleb128 0xb
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 19
+
+
+ 788 0041 0B       		.uleb128 0xb
+ 789 0042 3A       		.uleb128 0x3a
+ 790 0043 0B       		.uleb128 0xb
+ 791 0044 3B       		.uleb128 0x3b
+ 792 0045 0B       		.uleb128 0xb
+ 793 0046 01       		.uleb128 0x1
+ 794 0047 13       		.uleb128 0x13
+ 795 0048 00       		.byte	0
+ 796 0049 00       		.byte	0
+ 797 004a 07       		.uleb128 0x7
+ 798 004b 0D       		.uleb128 0xd
+ 799 004c 00       		.byte	0
+ 800 004d 03       		.uleb128 0x3
+ 801 004e 08       		.uleb128 0x8
+ 802 004f 3A       		.uleb128 0x3a
+ 803 0050 0B       		.uleb128 0xb
+ 804 0051 3B       		.uleb128 0x3b
+ 805 0052 0B       		.uleb128 0xb
+ 806 0053 49       		.uleb128 0x49
+ 807 0054 13       		.uleb128 0x13
+ 808 0055 38       		.uleb128 0x38
+ 809 0056 0B       		.uleb128 0xb
+ 810 0057 00       		.byte	0
+ 811 0058 00       		.byte	0
+ 812 0059 08       		.uleb128 0x8
+ 813 005a 0D       		.uleb128 0xd
+ 814 005b 00       		.byte	0
+ 815 005c 03       		.uleb128 0x3
+ 816 005d 0E       		.uleb128 0xe
+ 817 005e 3A       		.uleb128 0x3a
+ 818 005f 0B       		.uleb128 0xb
+ 819 0060 3B       		.uleb128 0x3b
+ 820 0061 0B       		.uleb128 0xb
+ 821 0062 49       		.uleb128 0x49
+ 822 0063 13       		.uleb128 0x13
+ 823 0064 38       		.uleb128 0x38
+ 824 0065 0B       		.uleb128 0xb
+ 825 0066 00       		.byte	0
+ 826 0067 00       		.byte	0
+ 827 0068 09       		.uleb128 0x9
+ 828 0069 16       		.uleb128 0x16
+ 829 006a 00       		.byte	0
+ 830 006b 03       		.uleb128 0x3
+ 831 006c 0E       		.uleb128 0xe
+ 832 006d 3A       		.uleb128 0x3a
+ 833 006e 0B       		.uleb128 0xb
+ 834 006f 3B       		.uleb128 0x3b
+ 835 0070 0B       		.uleb128 0xb
+ 836 0071 49       		.uleb128 0x49
+ 837 0072 13       		.uleb128 0x13
+ 838 0073 00       		.byte	0
+ 839 0074 00       		.byte	0
+ 840 0075 0A       		.uleb128 0xa
+ 841 0076 2E       		.uleb128 0x2e
+ 842 0077 01       		.byte	0x1
+ 843 0078 3F       		.uleb128 0x3f
+ 844 0079 19       		.uleb128 0x19
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 20
+
+
+ 845 007a 03       		.uleb128 0x3
+ 846 007b 0E       		.uleb128 0xe
+ 847 007c 3A       		.uleb128 0x3a
+ 848 007d 0B       		.uleb128 0xb
+ 849 007e 3B       		.uleb128 0x3b
+ 850 007f 0B       		.uleb128 0xb
+ 851 0080 27       		.uleb128 0x27
+ 852 0081 19       		.uleb128 0x19
+ 853 0082 11       		.uleb128 0x11
+ 854 0083 01       		.uleb128 0x1
+ 855 0084 12       		.uleb128 0x12
+ 856 0085 06       		.uleb128 0x6
+ 857 0086 40       		.uleb128 0x40
+ 858 0087 18       		.uleb128 0x18
+ 859 0088 9742     		.uleb128 0x2117
+ 860 008a 19       		.uleb128 0x19
+ 861 008b 01       		.uleb128 0x1
+ 862 008c 13       		.uleb128 0x13
+ 863 008d 00       		.byte	0
+ 864 008e 00       		.byte	0
+ 865 008f 0B       		.uleb128 0xb
+ 866 0090 898201   		.uleb128 0x4109
+ 867 0093 00       		.byte	0
+ 868 0094 11       		.uleb128 0x11
+ 869 0095 01       		.uleb128 0x1
+ 870 0096 31       		.uleb128 0x31
+ 871 0097 13       		.uleb128 0x13
+ 872 0098 00       		.byte	0
+ 873 0099 00       		.byte	0
+ 874 009a 0C       		.uleb128 0xc
+ 875 009b 898201   		.uleb128 0x4109
+ 876 009e 01       		.byte	0x1
+ 877 009f 11       		.uleb128 0x11
+ 878 00a0 01       		.uleb128 0x1
+ 879 00a1 31       		.uleb128 0x31
+ 880 00a2 13       		.uleb128 0x13
+ 881 00a3 01       		.uleb128 0x1
+ 882 00a4 13       		.uleb128 0x13
+ 883 00a5 00       		.byte	0
+ 884 00a6 00       		.byte	0
+ 885 00a7 0D       		.uleb128 0xd
+ 886 00a8 8A8201   		.uleb128 0x410a
+ 887 00ab 00       		.byte	0
+ 888 00ac 02       		.uleb128 0x2
+ 889 00ad 18       		.uleb128 0x18
+ 890 00ae 9142     		.uleb128 0x2111
+ 891 00b0 18       		.uleb128 0x18
+ 892 00b1 00       		.byte	0
+ 893 00b2 00       		.byte	0
+ 894 00b3 0E       		.uleb128 0xe
+ 895 00b4 2E       		.uleb128 0x2e
+ 896 00b5 01       		.byte	0x1
+ 897 00b6 3F       		.uleb128 0x3f
+ 898 00b7 19       		.uleb128 0x19
+ 899 00b8 03       		.uleb128 0x3
+ 900 00b9 0E       		.uleb128 0xe
+ 901 00ba 3A       		.uleb128 0x3a
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 21
+
+
+ 902 00bb 0B       		.uleb128 0xb
+ 903 00bc 3B       		.uleb128 0x3b
+ 904 00bd 0B       		.uleb128 0xb
+ 905 00be 49       		.uleb128 0x49
+ 906 00bf 13       		.uleb128 0x13
+ 907 00c0 11       		.uleb128 0x11
+ 908 00c1 01       		.uleb128 0x1
+ 909 00c2 12       		.uleb128 0x12
+ 910 00c3 06       		.uleb128 0x6
+ 911 00c4 40       		.uleb128 0x40
+ 912 00c5 18       		.uleb128 0x18
+ 913 00c6 9742     		.uleb128 0x2117
+ 914 00c8 19       		.uleb128 0x19
+ 915 00c9 01       		.uleb128 0x1
+ 916 00ca 13       		.uleb128 0x13
+ 917 00cb 00       		.byte	0
+ 918 00cc 00       		.byte	0
+ 919 00cd 0F       		.uleb128 0xf
+ 920 00ce 34       		.uleb128 0x34
+ 921 00cf 00       		.byte	0
+ 922 00d0 03       		.uleb128 0x3
+ 923 00d1 0E       		.uleb128 0xe
+ 924 00d2 3A       		.uleb128 0x3a
+ 925 00d3 0B       		.uleb128 0xb
+ 926 00d4 3B       		.uleb128 0x3b
+ 927 00d5 0B       		.uleb128 0xb
+ 928 00d6 49       		.uleb128 0x49
+ 929 00d7 13       		.uleb128 0x13
+ 930 00d8 02       		.uleb128 0x2
+ 931 00d9 17       		.uleb128 0x17
+ 932 00da 00       		.byte	0
+ 933 00db 00       		.byte	0
+ 934 00dc 10       		.uleb128 0x10
+ 935 00dd 898201   		.uleb128 0x4109
+ 936 00e0 01       		.byte	0x1
+ 937 00e1 11       		.uleb128 0x11
+ 938 00e2 01       		.uleb128 0x1
+ 939 00e3 31       		.uleb128 0x31
+ 940 00e4 13       		.uleb128 0x13
+ 941 00e5 00       		.byte	0
+ 942 00e6 00       		.byte	0
+ 943 00e7 11       		.uleb128 0x11
+ 944 00e8 34       		.uleb128 0x34
+ 945 00e9 00       		.byte	0
+ 946 00ea 03       		.uleb128 0x3
+ 947 00eb 0E       		.uleb128 0xe
+ 948 00ec 3A       		.uleb128 0x3a
+ 949 00ed 0B       		.uleb128 0xb
+ 950 00ee 3B       		.uleb128 0x3b
+ 951 00ef 0B       		.uleb128 0xb
+ 952 00f0 49       		.uleb128 0x49
+ 953 00f1 13       		.uleb128 0x13
+ 954 00f2 3F       		.uleb128 0x3f
+ 955 00f3 19       		.uleb128 0x19
+ 956 00f4 02       		.uleb128 0x2
+ 957 00f5 18       		.uleb128 0x18
+ 958 00f6 00       		.byte	0
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 22
+
+
+ 959 00f7 00       		.byte	0
+ 960 00f8 12       		.uleb128 0x12
+ 961 00f9 2E       		.uleb128 0x2e
+ 962 00fa 00       		.byte	0
+ 963 00fb 3F       		.uleb128 0x3f
+ 964 00fc 19       		.uleb128 0x19
+ 965 00fd 03       		.uleb128 0x3
+ 966 00fe 0E       		.uleb128 0xe
+ 967 00ff 3A       		.uleb128 0x3a
+ 968 0100 0B       		.uleb128 0xb
+ 969 0101 3B       		.uleb128 0x3b
+ 970 0102 0B       		.uleb128 0xb
+ 971 0103 27       		.uleb128 0x27
+ 972 0104 19       		.uleb128 0x19
+ 973 0105 3C       		.uleb128 0x3c
+ 974 0106 19       		.uleb128 0x19
+ 975 0107 00       		.byte	0
+ 976 0108 00       		.byte	0
+ 977 0109 13       		.uleb128 0x13
+ 978 010a 2E       		.uleb128 0x2e
+ 979 010b 01       		.byte	0x1
+ 980 010c 3F       		.uleb128 0x3f
+ 981 010d 19       		.uleb128 0x19
+ 982 010e 03       		.uleb128 0x3
+ 983 010f 0E       		.uleb128 0xe
+ 984 0110 3A       		.uleb128 0x3a
+ 985 0111 0B       		.uleb128 0xb
+ 986 0112 3B       		.uleb128 0x3b
+ 987 0113 0B       		.uleb128 0xb
+ 988 0114 27       		.uleb128 0x27
+ 989 0115 19       		.uleb128 0x19
+ 990 0116 3C       		.uleb128 0x3c
+ 991 0117 19       		.uleb128 0x19
+ 992 0118 01       		.uleb128 0x1
+ 993 0119 13       		.uleb128 0x13
+ 994 011a 00       		.byte	0
+ 995 011b 00       		.byte	0
+ 996 011c 14       		.uleb128 0x14
+ 997 011d 05       		.uleb128 0x5
+ 998 011e 00       		.byte	0
+ 999 011f 49       		.uleb128 0x49
+ 1000 0120 13       		.uleb128 0x13
+ 1001 0121 00       		.byte	0
+ 1002 0122 00       		.byte	0
+ 1003 0123 15       		.uleb128 0x15
+ 1004 0124 0F       		.uleb128 0xf
+ 1005 0125 00       		.byte	0
+ 1006 0126 0B       		.uleb128 0xb
+ 1007 0127 0B       		.uleb128 0xb
+ 1008 0128 49       		.uleb128 0x49
+ 1009 0129 13       		.uleb128 0x13
+ 1010 012a 00       		.byte	0
+ 1011 012b 00       		.byte	0
+ 1012 012c 16       		.uleb128 0x16
+ 1013 012d 2E       		.uleb128 0x2e
+ 1014 012e 01       		.byte	0x1
+ 1015 012f 3F       		.uleb128 0x3f
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 23
+
+
+ 1016 0130 19       		.uleb128 0x19
+ 1017 0131 03       		.uleb128 0x3
+ 1018 0132 0E       		.uleb128 0xe
+ 1019 0133 3A       		.uleb128 0x3a
+ 1020 0134 0B       		.uleb128 0xb
+ 1021 0135 3B       		.uleb128 0x3b
+ 1022 0136 0B       		.uleb128 0xb
+ 1023 0137 27       		.uleb128 0x27
+ 1024 0138 19       		.uleb128 0x19
+ 1025 0139 49       		.uleb128 0x49
+ 1026 013a 13       		.uleb128 0x13
+ 1027 013b 3C       		.uleb128 0x3c
+ 1028 013c 19       		.uleb128 0x19
+ 1029 013d 01       		.uleb128 0x1
+ 1030 013e 13       		.uleb128 0x13
+ 1031 013f 00       		.byte	0
+ 1032 0140 00       		.byte	0
+ 1033 0141 17       		.uleb128 0x17
+ 1034 0142 2E       		.uleb128 0x2e
+ 1035 0143 00       		.byte	0
+ 1036 0144 3F       		.uleb128 0x3f
+ 1037 0145 19       		.uleb128 0x19
+ 1038 0146 03       		.uleb128 0x3
+ 1039 0147 0E       		.uleb128 0xe
+ 1040 0148 3A       		.uleb128 0x3a
+ 1041 0149 0B       		.uleb128 0xb
+ 1042 014a 3B       		.uleb128 0x3b
+ 1043 014b 0B       		.uleb128 0xb
+ 1044 014c 27       		.uleb128 0x27
+ 1045 014d 19       		.uleb128 0x19
+ 1046 014e 49       		.uleb128 0x49
+ 1047 014f 13       		.uleb128 0x13
+ 1048 0150 3C       		.uleb128 0x3c
+ 1049 0151 19       		.uleb128 0x19
+ 1050 0152 00       		.byte	0
+ 1051 0153 00       		.byte	0
+ 1052 0154 18       		.uleb128 0x18
+ 1053 0155 2E       		.uleb128 0x2e
+ 1054 0156 01       		.byte	0x1
+ 1055 0157 3F       		.uleb128 0x3f
+ 1056 0158 19       		.uleb128 0x19
+ 1057 0159 03       		.uleb128 0x3
+ 1058 015a 0E       		.uleb128 0xe
+ 1059 015b 3A       		.uleb128 0x3a
+ 1060 015c 0B       		.uleb128 0xb
+ 1061 015d 3B       		.uleb128 0x3b
+ 1062 015e 0B       		.uleb128 0xb
+ 1063 015f 27       		.uleb128 0x27
+ 1064 0160 19       		.uleb128 0x19
+ 1065 0161 3C       		.uleb128 0x3c
+ 1066 0162 19       		.uleb128 0x19
+ 1067 0163 00       		.byte	0
+ 1068 0164 00       		.byte	0
+ 1069 0165 00       		.byte	0
+ 1070              		.section	.debug_loc,"",%progbits
+ 1071              	.Ldebug_loc0:
+ 1072              	.LLST0:
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 24
+
+
+ 1073 0000 24000000 		.4byte	.LVL12
+ 1074 0004 4C000000 		.4byte	.LVL20
+ 1075 0008 0100     		.2byte	0x1
+ 1076 000a 56       		.byte	0x56
+ 1077 000b 00000000 		.4byte	0
+ 1078 000f 00000000 		.4byte	0
+ 1079              	.LLST1:
+ 1080 0013 2A000000 		.4byte	.LVL13
+ 1081 0017 44000000 		.4byte	.LVL18
+ 1082 001b 0100     		.2byte	0x1
+ 1083 001d 50       		.byte	0x50
+ 1084 001e 00000000 		.4byte	0
+ 1085 0022 00000000 		.4byte	0
+ 1086              	.LLST2:
+ 1087 0026 04000000 		.4byte	.LVL7
+ 1088 002a 0E000000 		.4byte	.LVL9
+ 1089 002e 0200     		.2byte	0x2
+ 1090 0030 30       		.byte	0x30
+ 1091 0031 9F       		.byte	0x9f
+ 1092 0032 0E000000 		.4byte	.LVL9
+ 1093 0036 2C000000 		.4byte	.LVL14
+ 1094 003a 0100     		.2byte	0x1
+ 1095 003c 55       		.byte	0x55
+ 1096 003d 36000000 		.4byte	.LVL15
+ 1097 0041 BC000000 		.4byte	.LFE35
+ 1098 0045 0100     		.2byte	0x1
+ 1099 0047 55       		.byte	0x55
+ 1100 0048 00000000 		.4byte	0
+ 1101 004c 00000000 		.4byte	0
+ 1102              	.LLST3:
+ 1103 0050 04000000 		.4byte	.LVL7
+ 1104 0054 0E000000 		.4byte	.LVL9
+ 1105 0058 0200     		.2byte	0x2
+ 1106 005a 30       		.byte	0x30
+ 1107 005b 9F       		.byte	0x9f
+ 1108 005c 0E000000 		.4byte	.LVL9
+ 1109 0060 38000000 		.4byte	.LVL16
+ 1110 0064 0100     		.2byte	0x1
+ 1111 0066 54       		.byte	0x54
+ 1112 0067 42000000 		.4byte	.LVL17
+ 1113 006b BC000000 		.4byte	.LFE35
+ 1114 006f 0100     		.2byte	0x1
+ 1115 0071 54       		.byte	0x54
+ 1116 0072 00000000 		.4byte	0
+ 1117 0076 00000000 		.4byte	0
+ 1118              	.LLST4:
+ 1119 007a 4C000000 		.4byte	.LVL20
+ 1120 007e 51000000 		.4byte	.LVL21-1
+ 1121 0082 0100     		.2byte	0x1
+ 1122 0084 50       		.byte	0x50
+ 1123 0085 00000000 		.4byte	0
+ 1124 0089 00000000 		.4byte	0
+ 1125              	.LLST5:
+ 1126 008d 54000000 		.4byte	.LVL22
+ 1127 0091 5C000000 		.4byte	.LVL23
+ 1128 0095 0100     		.2byte	0x1
+ 1129 0097 50       		.byte	0x50
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 25
+
+
+ 1130 0098 68000000 		.4byte	.LVL26
+ 1131 009c 78000000 		.4byte	.LVL27
+ 1132 00a0 0100     		.2byte	0x1
+ 1133 00a2 50       		.byte	0x50
+ 1134 00a3 84000000 		.4byte	.LVL30
+ 1135 00a7 86000000 		.4byte	.LVL31
+ 1136 00ab 0100     		.2byte	0x1
+ 1137 00ad 50       		.byte	0x50
+ 1138 00ae 00000000 		.4byte	0
+ 1139 00b2 00000000 		.4byte	0
+ 1140              	.LLST6:
+ 1141 00b6 04000000 		.4byte	.LVL7
+ 1142 00ba 0E000000 		.4byte	.LVL9
+ 1143 00be 0200     		.2byte	0x2
+ 1144 00c0 30       		.byte	0x30
+ 1145 00c1 9F       		.byte	0x9f
+ 1146 00c2 96000000 		.4byte	.LVL35
+ 1147 00c6 BC000000 		.4byte	.LFE35
+ 1148 00ca 0200     		.2byte	0x2
+ 1149 00cc 91       		.byte	0x91
+ 1150 00cd 64       		.sleb128 -28
+ 1151 00ce 00000000 		.4byte	0
+ 1152 00d2 00000000 		.4byte	0
+ 1153              		.section	.debug_aranges,"",%progbits
+ 1154 0000 24000000 		.4byte	0x24
+ 1155 0004 0200     		.2byte	0x2
+ 1156 0006 00000000 		.4byte	.Ldebug_info0
+ 1157 000a 04       		.byte	0x4
+ 1158 000b 00       		.byte	0
+ 1159 000c 0000     		.2byte	0
+ 1160 000e 0000     		.2byte	0
+ 1161 0010 00000000 		.4byte	.LFB36
+ 1162 0014 2C000000 		.4byte	.LFE36-.LFB36
+ 1163 0018 00000000 		.4byte	.LFB35
+ 1164 001c BC000000 		.4byte	.LFE35-.LFB35
+ 1165 0020 00000000 		.4byte	0
+ 1166 0024 00000000 		.4byte	0
+ 1167              		.section	.debug_ranges,"",%progbits
+ 1168              	.Ldebug_ranges0:
+ 1169 0000 00000000 		.4byte	.LFB36
+ 1170 0004 2C000000 		.4byte	.LFE36
+ 1171 0008 00000000 		.4byte	.LFB35
+ 1172 000c BC000000 		.4byte	.LFE35
+ 1173 0010 00000000 		.4byte	0
+ 1174 0014 00000000 		.4byte	0
+ 1175              		.section	.debug_line,"",%progbits
+ 1176              	.Ldebug_line0:
+ 1177 0000 0C010000 		.section	.debug_str,"MS",%progbits,1
+ 1177      0200BF00 
+ 1177      00000201 
+ 1177      FB0E0D00 
+ 1177      01010101 
+ 1178              	.LASF6:
+ 1179 0000 6C6F6E67 		.ascii	"long long int\000"
+ 1179      206C6F6E 
+ 1179      6720696E 
+ 1179      7400
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 26
+
+
+ 1180              	.LASF24:
+ 1181 000e 66696C74 		.ascii	"filterOutputVth\000"
+ 1181      65724F75 
+ 1181      74707574 
+ 1181      56746800 
+ 1182              	.LASF23:
+ 1183 001e 66696C74 		.ascii	"filterOutputVref\000"
+ 1183      65724F75 
+ 1183      74707574 
+ 1183      56726566 
+ 1183      00
+ 1184              	.LASF22:
+ 1185 002f 61646352 		.ascii	"adcResultVTH\000"
+ 1185      6573756C 
+ 1185      74565448 
+ 1185      00
+ 1186              	.LASF13:
+ 1187 003c 666C6F61 		.ascii	"float\000"
+ 1187      7400
+ 1188              	.LASF30:
+ 1189 0042 56726566 		.ascii	"VrefBuffer_Start\000"
+ 1189      42756666 
+ 1189      65725F53 
+ 1189      74617274 
+ 1189      00
+ 1190              	.LASF3:
+ 1191 0053 73686F72 		.ascii	"short unsigned int\000"
+ 1191      7420756E 
+ 1191      7369676E 
+ 1191      65642069 
+ 1191      6E7400
+ 1192              	.LASF41:
+ 1193 0066 455A4932 		.ascii	"EZI2C_EzI2CGetActivity\000"
+ 1193      435F457A 
+ 1193      49324347 
+ 1193      65744163 
+ 1193      74697669 
+ 1194              	.LASF45:
+ 1195 007d 69326342 		.ascii	"i2cBuffer\000"
+ 1195      75666665 
+ 1195      7200
+ 1196              	.LASF31:
+ 1197 0087 50567265 		.ascii	"PVref_Start\000"
+ 1197      665F5374 
+ 1197      61727400 
+ 1198              	.LASF17:
+ 1199 0093 74656D70 		.ascii	"temperature\000"
+ 1199      65726174 
+ 1199      75726500 
+ 1200              	.LASF7:
+ 1201 009f 6C6F6E67 		.ascii	"long long unsigned int\000"
+ 1201      206C6F6E 
+ 1201      6720756E 
+ 1201      7369676E 
+ 1201      65642069 
+ 1202              	.LASF1:
+ 1203 00b6 756E7369 		.ascii	"unsigned char\000"
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 27
+
+
+ 1203      676E6564 
+ 1203      20636861 
+ 1203      7200
+ 1204              	.LASF25:
+ 1205 00c4 74686572 		.ascii	"thermistorResistance\000"
+ 1205      6D697374 
+ 1205      6F725265 
+ 1205      73697374 
+ 1205      616E6365 
+ 1206              	.LASF18:
+ 1207 00d9 74656D70 		.ascii	"temperature_sensor_data\000"
+ 1207      65726174 
+ 1207      7572655F 
+ 1207      73656E73 
+ 1207      6F725F64 
+ 1208              	.LASF26:
+ 1209 00f1 696E7465 		.ascii	"interruptState\000"
+ 1209      72727570 
+ 1209      74537461 
+ 1209      746500
+ 1210              	.LASF5:
+ 1211 0100 6C6F6E67 		.ascii	"long unsigned int\000"
+ 1211      20756E73 
+ 1211      69676E65 
+ 1211      6420696E 
+ 1211      7400
+ 1212              	.LASF9:
+ 1213 0112 75696E74 		.ascii	"uint8\000"
+ 1213      3800
+ 1214              	.LASF36:
+ 1215 0118 54686572 		.ascii	"Thermistor_GetTemperature\000"
+ 1215      6D697374 
+ 1215      6F725F47 
+ 1215      65745465 
+ 1215      6D706572 
+ 1216              	.LASF34:
+ 1217 0132 4144435F 		.ascii	"ADC_GetResult16\000"
+ 1217      47657452 
+ 1217      6573756C 
+ 1217      74313600 
+ 1218              	.LASF33:
+ 1219 0142 4144435F 		.ascii	"ADC_IsEndConversion\000"
+ 1219      4973456E 
+ 1219      64436F6E 
+ 1219      76657273 
+ 1219      696F6E00 
+ 1220              	.LASF39:
+ 1221 0156 50696E5F 		.ascii	"Pin_LED_Red_Write\000"
+ 1221      4C45445F 
+ 1221      5265645F 
+ 1221      57726974 
+ 1221      6500
+ 1222              	.LASF14:
+ 1223 0168 646F7562 		.ascii	"double\000"
+ 1223      6C6500
+ 1224              	.LASF19:
+ 1225 016f 496E6974 		.ascii	"InitResources\000"
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 28
+
+
+ 1225      5265736F 
+ 1225      75726365 
+ 1225      7300
+ 1226              	.LASF20:
+ 1227 017d 6D61696E 		.ascii	"main\000"
+ 1227      00
+ 1228              	.LASF32:
+ 1229 0182 50567265 		.ascii	"PVref_Enable\000"
+ 1229      665F456E 
+ 1229      61626C65 
+ 1229      00
+ 1230              	.LASF10:
+ 1231 018f 75696E74 		.ascii	"uint16\000"
+ 1231      313600
+ 1232              	.LASF11:
+ 1233 0196 75696E74 		.ascii	"uint32\000"
+ 1233      333200
+ 1234              	.LASF40:
+ 1235 019d 4379456E 		.ascii	"CyEnterCriticalSection\000"
+ 1235      74657243 
+ 1235      72697469 
+ 1235      63616C53 
+ 1235      65637469 
+ 1236              	.LASF8:
+ 1237 01b4 756E7369 		.ascii	"unsigned int\000"
+ 1237      676E6564 
+ 1237      20696E74 
+ 1237      00
+ 1238              	.LASF46:
+ 1239 01c1 43794578 		.ascii	"CyExitCriticalSection\000"
+ 1239      69744372 
+ 1239      69746963 
+ 1239      616C5365 
+ 1239      6374696F 
+ 1240              	.LASF37:
+ 1241 01d7 455A4932 		.ascii	"EZI2C_EzI2CSetBuffer1\000"
+ 1241      435F457A 
+ 1241      49324353 
+ 1241      65744275 
+ 1241      66666572 
+ 1242              	.LASF12:
+ 1243 01ed 696E7431 		.ascii	"int16\000"
+ 1243      3600
+ 1244              	.LASF28:
+ 1245 01f3 4144435F 		.ascii	"ADC_Start\000"
+ 1245      53746172 
+ 1245      7400
+ 1246              	.LASF38:
+ 1247 01fd 50696E5F 		.ascii	"Pin_LED_Blue_Write\000"
+ 1247      4C45445F 
+ 1247      426C7565 
+ 1247      5F577269 
+ 1247      746500
+ 1248              	.LASF16:
+ 1249 0210 73697A65 		.ascii	"sizetype\000"
+ 1249      74797065 
+ 1249      00
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 29
+
+
+ 1250              	.LASF21:
+ 1251 0219 61646352 		.ascii	"adcResultVREF\000"
+ 1251      6573756C 
+ 1251      74565245 
+ 1251      4600
+ 1252              	.LASF29:
+ 1253 0227 4144435F 		.ascii	"ADC_StartConvert\000"
+ 1253      53746172 
+ 1253      74436F6E 
+ 1253      76657274 
+ 1253      00
+ 1254              	.LASF43:
+ 1255 0238 6D61696E 		.ascii	"main.c\000"
+ 1255      2E6300
+ 1256              	.LASF15:
+ 1257 023f 63686172 		.ascii	"char\000"
+ 1257      00
+ 1258              	.LASF42:
+ 1259 0244 474E5520 		.ascii	"GNU C 4.9.3 20150303 (release) [ARM/embedded-4_9-br"
+ 1259      4320342E 
+ 1259      392E3320 
+ 1259      32303135 
+ 1259      30333033 
+ 1260 0277 616E6368 		.ascii	"anch revision 221220] -mcpu=cortex-m0plus -mthumb -"
+ 1260      20726576 
+ 1260      6973696F 
+ 1260      6E203232 
+ 1260      31323230 
+ 1261 02aa 67202D4F 		.ascii	"g -Og -ffunction-sections -ffat-lto-objects\000"
+ 1261      67202D66 
+ 1261      66756E63 
+ 1261      74696F6E 
+ 1261      2D736563 
+ 1262              	.LASF2:
+ 1263 02d6 73686F72 		.ascii	"short int\000"
+ 1263      7420696E 
+ 1263      7400
+ 1264              	.LASF35:
+ 1265 02e0 54686572 		.ascii	"Thermistor_GetResistance\000"
+ 1265      6D697374 
+ 1265      6F725F47 
+ 1265      65745265 
+ 1265      73697374 
+ 1266              	.LASF27:
+ 1267 02f9 455A4932 		.ascii	"EZI2C_Start\000"
+ 1267      435F5374 
+ 1267      61727400 
+ 1268              	.LASF44:
+ 1269 0305 433A5C55 		.ascii	"C:\\Users\\Bill Shaw\\Documents\\PSoC Creator\\Trai"
+ 1269      73657273 
+ 1269      5C42696C 
+ 1269      6C205368 
+ 1269      61775C44 
+ 1270 0333 6E696E67 		.ascii	"ning\\PIR Example\\CE211321_Temperature_Sensing\\CE"
+ 1270      5C504952 
+ 1270      20457861 
+ 1270      6D706C65 
+ARM GAS  C:\Users\BILLSH~1\AppData\Local\Temp\ccaQ1rdn.s 			page 30
+
+
+ 1270      5C434532 
+ 1271 0363 32313133 		.ascii	"211321_Temperature_Sensing\\CE211321_Temperature_Se"
+ 1271      32315F54 
+ 1271      656D7065 
+ 1271      72617475 
+ 1271      72655F53 
+ 1272 0395 6E73696E 		.ascii	"nsing.cydsn\000"
+ 1272      672E6379 
+ 1272      64736E00 
+ 1273              	.LASF4:
+ 1274 03a1 6C6F6E67 		.ascii	"long int\000"
+ 1274      20696E74 
+ 1274      00
+ 1275              	.LASF0:
+ 1276 03aa 7369676E 		.ascii	"signed char\000"
+ 1276      65642063 
+ 1276      68617200 
+ 1277              		.ident	"GCC: (GNU Tools for ARM Embedded Processors) 4.9.3 20150303 (release) [ARM/embedded-4_9-br
