@@ -5,10 +5,11 @@ Full instructions for the project here: https://www.hackster.io/ithinkso/automat
 
 The instructions for downloading node.js for Raspberry Pi is here: https://github.com/nathanjohnson320/node_arm
 
-You will also have to download the packages serialport and ws via npm:
+You will also have to download the packages serialport, ws and raspi-i2c via npm:
 ```
 $ npm install serialport
 $ npm install ws
+$ npm install raspi-i2c
 ```
 
 The code for the Arduino is the IoT-temp-sensor.ino file.
